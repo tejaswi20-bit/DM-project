@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fiber-Optic Network Planner</title>
+<style>
+:root{--bg:#f3f6f9;--card:#fff;--ink:#17222e;--mut:#5b6a7b;--line:#d5dde6;--acc:#0a63b8;--fib:#0b8f7a;--bad:#c0392b;--warn:#d2791c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.app{display:grid;grid-template-columns:210px 1fr;min-height:100vh}
+nav{background:#fff;border-right:1px solid var(--line);padding:18px 0}
+nav h1{font-size:16px;margin:0 18px 16px;line-height:1.3}
+nav a{display:block;padding:10px 18px;color:var(--ink);text-decoration:none;border-left:3px solid transparent}
+nav a:hover{background:var(--bg)}nav a.on{border-left-color:var(--acc);background:#eaf2fb;font-weight:600;color:var(--acc)}
+main{padding:22px;min-width:0}
+h2{margin:0 0 4px;font-size:22px}h3{margin:0 0 10px;font-size:16px}
+.sub{color:var(--mut);margin:0 0 18px;max-width:70ch}
+.page{display:none}.page.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:4px;padding:12px}
+.kpi b{display:block;font-size:22px}.kpi span{color:var(--mut);font-size:13px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px}
+button,select,input{font:inherit;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--ink);padding:7px 11px}
+button{cursor:pointer;background:var(--acc);border-color:var(--acc);color:#fff}
+button:hover{filter:brightness(1.08)}button.sec{background:#fff;color:var(--ink);border-color:var(--line)}button.dng{background:#fff;color:var(--bad);border-color:var(--bad)}
+button:disabled{opacity:.45;cursor:default}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+input,select{width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.row button{width:auto}
+svg.map{width:100%;height:auto;background:#fbfdff;border:1px solid var(--line);border-radius:4px;touch-action:none;display:block}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}th{background:var(--bg);font-size:13px}
+tr.cur td{background:#fff4e0}tr.acc td{color:var(--fib)}tr.rej td{color:var(--bad)}
+.note{padding:10px 12px;border:1px solid var(--warn);background:#fff7ec;border-radius:4px;margin-bottom:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin-top:8px}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid;vertical-align:middle;margin-right:5px}
+.bar{height:22px;background:var(--bg);border:1px solid var(--line);border-radius:4px;margin:4px 0 12px;overflow:hidden}.bar div{height:100%;background:var(--fib)}
+.mini input{padding:4px 6px;width:100%}
+@media(max-width:820px){.app{grid-template-columns:1fr}nav{border-right:0;border-bottom:1px solid var(--line);padding:10px 0;display:flex;flex-wrap:wrap}nav h1{width:100%;margin-bottom:6px}nav a{border-left:0;border-bottom:3px solid transparent;padding:8px 12px}nav a.on{border-bottom-color:var(--acc)}.grid2{grid-template-columns:1fr}}
+</style></head><body>
+<div class="app">
+<nav><h1>Fiber-Optic Network Planner</h1>
+<a href="#overview">Overview</a><a href="#planner">Network planner</a><a href="#algorithm">Algorithm steps</a><a href="#results">Cable plan</a><a href="#theory">Method</a></nav>
+<main>
+
+<section class="page" id="p-overview">
+<h2>Overview</h2><p class="sub">Minimum-cost fiber-optic cable network connecting all buildings, computed as a minimum spanning tree (MST).</p>
+<div class="kpis" id="kpis"></div>
+<div class="card"><h3>Planned cable network</h3><svg class="map" id="svg-ov" viewBox="0 0 800 500"></svg>
+<div class="legend"><span><i style="border-color:var(--fib)"></i>Selected cable</span><span><i style="border-color:#c9d3de;border-top-style:dashed"></i>Candidate link not used</span></div></div>
+</section>
+
+<section class="page" id="p-planner">
+<h2>Network planner</h2><p class="sub">Click the map to add a building, drag a building to move it. Link cost = length × cost per metre + fixed cost per link.</p>
+<div class="grid2"><div class="card"><svg class="map" id="svg-pl" viewBox="0 0 800 500"></svg>
+<div class="row" style="margin-top:10px"><label style="margin:0"><input type="checkbox" id="showAll" style="width:auto"> Show all candidate links</label></div></div>
+<div>
+<div class="card"><h3>Cost settings</h3>
+<label>Cost per metre of cable</label><input type="number" id="rate" min="0" step="1">
+<label>Fixed cost per link (trenching, splicing)</label><input type="number" id="fixed" min="0" step="1">
+<label>Metres per map pixel</label><input type="number" id="mpp" min="0.01" step="0.1">
+<div class="row" style="margin-top:12px"><button id="sample">Load sample campus</button><button class="dng" id="clear">Clear all</button></div></div>
+<div class="card"><h3>Buildings</h3><div class="tw"><table id="ntable"></table></div></div>
+<div class="card"><h3>Link override</h3>
+<p class="sub" style="margin-bottom:6px">Set a custom cost for a link, or block it (e.g. a road or river in the way).</p>
+<label>From</label><select id="la"></select><label>To</label><select id="lb"></select>
+<label>Custom cost</label><input type="number" id="lc" min="0" placeholder="Leave empty to reset">
+<div class="row" style="margin-top:10px"><button id="lset">Set cost</button><button class="sec" id="lblock">Block link</button><button class="sec" id="lreset">Reset</button></div>
+<div id="ovlist"></div></div>
+</div></div>
+</section>
+
+<section class="page" id="p-algorithm">
+<h2>Algorithm steps</h2><p class="sub">Watch how the tree is built one link at a time.</p>
+<div class="card"><div class="row"><div style="width:200px"><select id="algo"><option value="kruskal">Kruskal’s algorithm</option><option value="prim">Prim’s algorithm</option></select></div>
+<button class="sec" id="prev">Previous</button><button id="next">Next step</button><button class="sec" id="play">Auto play</button><button class="sec" id="reset">Reset</button><span id="stepinfo" style="color:var(--mut)"></span></div></div>
+<div class="grid2"><div class="card"><svg class="map" id="svg-al" viewBox="0 0 800 500"></svg>
+<div class="legend"><span><i style="border-color:var(--fib)"></i>Accepted</span><span><i style="border-color:var(--warn)"></i>Being examined</span><span><i style="border-color:var(--bad);border-top-style:dashed"></i>Rejected (forms a cycle)</span></div></div>
+<div class="card"><h3>Step log</h3><div class="tw" style="max-height:480px;overflow-y:auto"><table id="steptable"></table></div></div></div>
+</section>
+
+<section class="page" id="p-results">
+<h2>Cable plan</h2><p class="sub">Links selected for the minimum-cost network.</p>
+<div id="resnote"></div>
+<div class="grid2" style="grid-template-columns:minmax(0,1fr) 340px">
+<div class="card"><h3>Selected links</h3><div class="tw"><table id="rtable"></table></div></div>
+<div><div class="card"><h3>Cost comparison</h3><div id="cmp"></div></div>
+<div class="card"><h3>Buildings by connections</h3><div class="tw"><table id="dtable"></table></div></div></div></div>
+</section>
+
+<section class="page" id="p-theory">
+<h2>Method</h2><p class="sub">Why a spanning tree gives the cheapest way to connect every building.</p>
+<div class="card"><h3>Graph model</h3><p>Each building is a vertex. Each possible cable route between two buildings is an edge, weighted by its cost. A network that connects all buildings with no redundant loop is a spanning tree with V − 1 edges; the cheapest one is the minimum spanning tree.</p></div>
+<div class="card"><h3>Kruskal’s algorithm</h3><p>Sort all links by cost. Take them from cheapest to dearest, accepting a link only if it joins two buildings not yet connected (checked with union-find); otherwise it would form a cycle and is rejected. Stop after V − 1 links. Running time is O(E log E).</p></div>
+<div class="card"><h3>Prim’s algorithm</h3><p>Start from one building. Repeatedly add the cheapest link that connects a building already in the tree to one outside it, until every building is included. With a simple scan this is O(V²), which suits dense graphs such as a campus where every pair of buildings is a candidate.</p></div>
+<div class="card"><h3>Notes on this tool</h3><p>Both algorithms are run on the same graph and must give the same total cost (shown on the Cable plan page as a check). If blocked links leave some buildings unreachable, the result is a minimum spanning forest, and the tool tells you which parts are disconnected. The cost model is the simple one set on the planner page; real projects add terrain, permits and equipment costs.</p></div>
+</section>
+
+</main></div>
+<script>
+const $=s=>document.querySelector(s),fmt=n=>Math.round(n).toLocaleString('en-IN');
+const S={nodes:[],ov:{},rate:120,fixed:2000,mpp:0.5,nid:1,showAll:false,step:0,timer:null};
+const SAMPLE=[["Admin Block",400,90],["Library",250,170],["CS Department",560,160],["Hostel A",120,330],["Hostel B",260,430],["Labs",470,320],["Auditorium",680,250],["Data Centre",400,230]];
+const N=id=>S.nodes.find(n=>n.id===id),key=(a,b)=>a<b?a+'-'+b:b+'-'+a;
+function load(){S.nodes=[];S.ov={};S.nid=1;SAMPLE.forEach(([name,x,y])=>S.nodes.push({id:S.nid++,name,x,y}))}
+function edges(){const e=[],v=S.nodes;for(let i=0;i<v.length;i++)for(let j=i+1;j<v.length;j++){const a=v[i],b=v[j],k=key(a.id,b.id),o=S.ov[k];if(o==='X')continue;const len=Math.hypot(a.x-b.x,a.y-b.y)*S.mpp;e.push({a:a.id,b:b.id,k,len,cost:typeof o==='number'?o:len*S.rate+S.fixed})}return e}
+function solve(algo){const E=edges(),V=S.nodes,steps=[],tree=[];
+ if(algo==='kruskal'){const p={};V.forEach(n=>p[n.id]=n.id);const f=x=>p[x]===x?x:(p[x]=f(p[x]));
+  [...E].sort((x,y)=>x.cost-y.cost).forEach(e=>{if(tree.length>=V.length-1)return;const ra=f(e.a),rb=f(e.b);if(ra!==rb){p[ra]=rb;tree.push(e);steps.push({e,st:'acc'})}else steps.push({e,st:'rej'})})}
+ else{const inT=new Set();while(inT.size<V.length){const root=V.find(n=>!inT.has(n.id));inT.add(root.id);if(steps.length)steps.push({note:'New component starts at '+root.name});
+  for(;;){let best=null;E.forEach(e=>{if(inT.has(e.a)!==inT.has(e.b)&&(!best||e.cost<best.cost))best=e});if(!best)break;inT.add(inT.has(best.a)?best.b:best.a);tree.push(best);steps.push({e:best,st:'acc'})}}}
+ const comps=V.length?V.length-tree.length:0;
+ return{steps,tree,cost:tree.reduce((s,e)=>s+e.cost,0),len:tree.reduce((s,e)=>s+e.len,0),comps}}
+let R;function compute(){R={kruskal:solve('kruskal'),prim:solve('prim')};R.main=R.kruskal;R.all=edges()}
+
+function draw(svg,o={}){const tree=new Set((o.tree||[]).map(e=>e.k)),rej=new Set((o.rej||[]).map(e=>e.k));let h='';
+ if(o.faint)R.all.forEach(e=>{if(!tree.has(e.k)){const a=N(e.a),b=N(e.b);h+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#dfe6ee" stroke-width="1"/>`}});
+ (o.rej||[]).forEach(e=>{const a=N(e.a),b=N(e.b);h+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#c0392b" stroke-width="2" stroke-dasharray="6 5"/>`});
+ (o.tree||[]).forEach(e=>{const a=N(e.a),b=N(e.b);h+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#0b8f7a" stroke-width="4"/>`;
+  if(o.labels)h+=`<text x="${(a.x+b.x)/2}" y="${(a.y+b.y)/2-6}" font-size="12" text-anchor="middle" fill="#17222e" stroke="#fff" stroke-width="3" paint-order="stroke">${fmt(e.cost)}</text>`});
+ if(o.cur){const a=N(o.cur.a),b=N(o.cur.b);h+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#d2791c" stroke-width="5"/>`;
+  h+=`<text x="${(a.x+b.x)/2}" y="${(a.y+b.y)/2-8}" font-size="13" font-weight="600" text-anchor="middle" fill="#d2791c" stroke="#fff" stroke-width="3" paint-order="stroke">${fmt(o.cur.cost)}</text>`}
+ S.nodes.forEach(n=>{h+=`<g data-id="${n.id}" style="cursor:${o.edit?'grab':'default'}"><rect x="${n.x-9}" y="${n.y-9}" width="18" height="18" rx="2" fill="#fff" stroke="#0a63b8" stroke-width="3"/><text x="${n.x}" y="${n.y+26}" font-size="12" text-anchor="middle" fill="#17222e" stroke="#fbfdff" stroke-width="3" paint-order="stroke">${n.name.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</text></g>`});
+ if(!S.nodes.length)h+=`<text x="400" y="250" text-anchor="middle" fill="#5b6a7b">No buildings yet. Click here to add one, or load the sample campus.</text>`;
+ svg.innerHTML=h}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function renderOverview(){const r=R.main,V=S.nodes.length,full=R.all.reduce((s,e)=>s+e.cost,0),fl=R.all.reduce((s,e)=>s+e.len,0);
+ const sav=full>0?(1-r.cost/full)*100:0;
+ $('#kpis').innerHTML=[[V,'Buildings'],[R.all.length,'Candidate links'],[fmt(r.cost),'Minimum total cost'],[fmt(r.len)+' m','Cable length required'],[V>1?sav.toFixed(1)+'%':'-','Saved vs linking every pair']].map(k=>`<div class="kpi"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
+ draw($('#svg-ov'),{tree:r.tree,faint:true,labels:true})}
+function renderPlanner(){draw($('#svg-pl'),{tree:R.main.tree,faint:S.showAll,edit:true});
+ $('#ntable').innerHTML='<tr><th>Name</th><th>x</th><th>y</th><th></th></tr>'+S.nodes.map(n=>`<tr class="mini"><td><input data-n="${n.id}" value="${esc(n.name).replace(/"/g,'&quot;')}"></td><td>${Math.round(n.x)}</td><td>${Math.round(n.y)}</td><td><button class="sec" data-del="${n.id}">Remove</button></td></tr>`).join('');
+ const opts=S.nodes.map(n=>`<option value="${n.id}">${esc(n.name)}</option>`).join('');const ca=$('#la').value,cb=$('#lb').value;$('#la').innerHTML=opts;$('#lb').innerHTML=opts;if(ca)$('#la').value=ca;if(cb)$('#lb').value=cb;else if(S.nodes[1])$('#lb').value=S.nodes[1].id;
+ const ks=Object.keys(S.ov);$('#ovlist').innerHTML=ks.length?'<table style="margin-top:10px"><tr><th>Link</th><th>Setting</th></tr>'+ks.map(k=>{const[a,b]=k.split('-').map(Number);return`<tr><td>${esc(N(a)?.name||'?')} – ${esc(N(b)?.name||'?')}</td><td>${S.ov[k]==='X'?'Blocked':fmt(S.ov[k])}</td></tr>`}).join('')+'</table>':''}
+function stepsFor(){return R[$('#algo').value].steps}
+function renderAlgo(){const algo=$('#algo').value,st=R[algo].steps,i=S.step;const done=st.slice(0,i),acc=done.filter(s=>s.st==='acc').map(s=>s.e),rej=done.filter(s=>s.st==='rej').map(s=>s.e),last=done[done.length-1];
+ draw($('#svg-al'),{tree:acc,rej:rej.slice(-1),cur:last&&last.e&&last.st==='acc'?last.e:(last&&last.e?last.e:null),labels:true});
+ $('#stepinfo').textContent=`Step ${i} of ${st.length}`;$('#prev').disabled=i===0;$('#next').disabled=i>=st.length;
+ $('#steptable').innerHTML='<tr><th>#</th><th>Link</th><th>Cost</th><th>Decision</th></tr>'+(st.length?st.slice(0,i).map((s,j)=>s.note?`<tr><td>${j+1}</td><td colspan="3">${esc(s.note)}</td></tr>`:`<tr class="${s.st}${j===i-1?' cur':''}"><td>${j+1}</td><td>${esc(N(s.e.a).name)} – ${esc(N(s.e.b).name)}</td><td>${fmt(s.e.cost)}</td><td>${s.st==='acc'?'Accepted':'Rejected: cycle'}</td></tr>`).join(''):'<tr><td colspan="4">Add at least two buildings.</td></tr>')}
+function renderResults(){const r=R.main,V=S.nodes.length,full=R.all.reduce((s,e)=>s+e.cost,0);
+ $('#resnote').innerHTML=r.comps>1&&V>0?`<div class="note">Not all buildings can be connected with the current blocked links. The result is a forest with ${r.comps} separate parts.</div>`:'';
+ $('#rtable').innerHTML='<tr><th>#</th><th>From</th><th>To</th><th>Length (m)</th><th>Cost</th></tr>'+r.tree.map((e,i)=>`<tr><td>${i+1}</td><td>${esc(N(e.a).name)}</td><td>${esc(N(e.b).name)}</td><td>${fmt(e.len)}</td><td>${fmt(e.cost)}</td></tr>`).join('')+`<tr><th colspan="3">Total</th><th>${fmt(r.len)}</th><th>${fmt(r.cost)}</th></tr>`;
+ const ok=Math.abs(R.kruskal.cost-R.prim.cost)<1e-6;
+ $('#cmp').innerHTML=`<div>Minimum spanning tree <b style="float:right">${fmt(r.cost)}</b></div><div class="bar"><div style="width:${full?r.cost/full*100:0}%"></div></div><div>Linking every pair of buildings <b style="float:right">${fmt(full)}</b></div><div class="bar"><div style="width:100%;background:#9fb0c2"></div></div><p style="margin:0;color:var(--mut);font-size:13px">Kruskal: ${fmt(R.kruskal.cost)} &nbsp; Prim: ${fmt(R.prim.cost)} &nbsp; ${ok?'Both agree.':'Mismatch!'}</p>`;
+ const d={};S.nodes.forEach(n=>d[n.id]=0);r.tree.forEach(e=>{d[e.a]++;d[e.b]++});
+ $('#dtable').innerHTML='<tr><th>Building</th><th>Links</th></tr>'+S.nodes.map(n=>`<tr><td>${esc(n.name)}</td><td>${d[n.id]}</td></tr>`).join('')}
+function renderAll(){compute();S.step=Math.min(S.step,R[$('#algo').value].steps.length);renderOverview();renderPlanner();renderAlgo();renderResults()}
+
+function route(){const h=(location.hash||'#overview').slice(1),ok=['overview','planner','algorithm','results','theory'].includes(h)?h:'overview';
+ document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+ok));document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+ok));if(ok!=='algorithm')stop()}
+function stop(){clearInterval(S.timer);S.timer=null;$('#play').textContent='Auto play'}
+addEventListener('hashchange',route);
+
+// planner map interaction
+const pl=$('#svg-pl');let drag=null,moved=false;
+function pt(ev){const p=pl.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;return p.matrixTransform(pl.getScreenCTM().inverse())}
+pl.addEventListener('pointerdown',ev=>{const g=ev.target.closest('g[data-id]'),q=pt(ev);if(g){drag=+g.dataset.id;moved=false;pl.setPointerCapture(ev.pointerId)}else if(q.x>10&&q.x<790&&q.y>10&&q.y<490){S.nodes.push({id:S.nid,name:'Building '+S.nid,x:q.x,y:q.y});S.nid++;renderAll()}});
+pl.addEventListener('pointermove',ev=>{if(drag==null)return;const q=pt(ev),n=N(drag);n.x=Math.max(15,Math.min(785,q.x));n.y=Math.max(15,Math.min(485,q.y));moved=true;compute();renderOverview();draw(pl,{tree:R.main.tree,faint:S.showAll,edit:true})});
+pl.addEventListener('pointerup',()=>{if(drag!=null){drag=null;renderAll()}});
+$('#showAll').onchange=e=>{S.showAll=e.target.checked;renderPlanner()};
+['rate','fixed','mpp'].forEach(k=>{const el=$('#'+k);el.value=S[k];el.oninput=()=>{const v=parseFloat(el.value);if(isFinite(v)&&v>=0&&(k!=='mpp'||v>0)){S[k]=v;renderAll()}}});
+$('#sample').onclick=()=>{load();renderAll()};
+$('#clear').onclick=()=>{S.nodes=[];S.ov={};S.step=0;renderAll()};
+$('#ntable').addEventListener('change',e=>{if(e.target.dataset.n){N(+e.target.dataset.n).name=e.target.value||'Unnamed';renderAll()}});
+$('#ntable').addEventListener('click',e=>{const id=e.target.dataset.del;if(id){const i=+id;S.nodes=S.nodes.filter(n=>n.id!==i);Object.keys(S.ov).forEach(k=>{if(k.split('-').map(Number).includes(i))delete S.ov[k]});renderAll()}});
+function pair(){const a=+$('#la').value,b=+$('#lb').value;return a&&b&&a!==b?key(a,b):null}
+$('#lset').onclick=()=>{const k=pair(),v=parseFloat($('#lc').value);if(k&&isFinite(v)&&v>=0){S.ov[k]=v;renderAll()}};
+$('#lblock').onclick=()=>{const k=pair();if(k){S.ov[k]='X';renderAll()}};
+$('#lreset').onclick=()=>{const k=pair();if(k){delete S.ov[k];renderAll()}};
+
+// algorithm controls
+$('#algo').onchange=()=>{stop();S.step=0;renderAlgo()};
+$('#next').onclick=()=>{if(S.step<stepsFor().length){S.step++;renderAlgo()}};
+$('#prev').onclick=()=>{if(S.step>0){S.step--;renderAlgo()}};
+$('#reset').onclick=()=>{stop();S.step=0;renderAlgo()};
+$('#play').onclick=()=>{if(S.timer)return stop();$('#play').textContent='Pause';if(S.step>=stepsFor().length)S.step=0;S.timer=setInterval(()=>{if(S.step>=stepsFor().length)return stop();S.step++;renderAlgo()},700)};
+
+load();renderAll();route();
+</script></body></html>
